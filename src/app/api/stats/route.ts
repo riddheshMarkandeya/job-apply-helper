@@ -26,11 +26,6 @@ async function writeStats(data: IStats) {
   await fsPromises.writeFile(dataFilePath, updatedData);
 }
 
-// export async function GET() {
-//   const objectData = getStats();
-//   return Response.json(objectData);
-// }
-
 export async function POST(request: NextRequest) {
   try {
     await createIfNotFound();
