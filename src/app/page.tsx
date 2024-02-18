@@ -65,10 +65,8 @@ export default function Home() {
       if (index !== undefined && resume && resume.fields) {
         resume.fields.splice(index, 1);
         
-        // resume.fields = [...resume.fields];
-        // resume = {...resume}
-        await mutateData(async (resume) => ({...resume, ...{fields: []}}), false);
         await saveData(resume);
+        mutateData();
       }
     }
   }
@@ -79,10 +77,10 @@ export default function Home() {
       name,
       value,
     });
-    await mutateData(resume, false);
+    await saveData(resume);
     setName('');
     setValue('');
-    await saveData(resume);
+    mutateData();
   }
 
   async function move(id: string, isUp: boolean) {
@@ -96,7 +94,7 @@ export default function Home() {
       }
       resume.fields = [...resume.fields];
       await saveData(resume);
-      await mutateData({...resume}, true);
+      mutateData();
     }
   }
 
@@ -108,7 +106,7 @@ export default function Home() {
 
   return (
     <main className="flex flex-col fixed overflow-auto h-full p-8 lg:p-24">
-      <div className="relative w-full flex place-items-center flex-wrap flex-1">
+      <div className="relative w-full flex place-items-center flex-wrap">
         <div className="flex flex-wrap w-full p-1">
           <input className="flex-auto text-sm text-sm max-h-16 max-w-[90%] border border-gray-400 lg:border-t lg:border-gray-400 hover:bg-gray-100 rounded lg:rounded lg:rounded p-1 my-2 justify-between leading-normal"
             placeholder="Name"
@@ -128,10 +126,11 @@ export default function Home() {
             move={move}></Field>
         ))}
       </div>
+      <div className="flex-grow"></div>
       <div className="flex sticky bottom-0 inset-x-0 border shadow-[0px_-5px_5px_-5px_#333] border-black bg-slate-200 rounded mt-1.5">
         <div className="text-3xl p-1 text-center align-center">{count?.count}</div>
         <input className="flex-auto text-sm text-sm max-h-16 max-w-full border border-gray-400 lg:border-t lg:border-gray-400 hover:bg-gray-100 rounded lg:rounded lg:rounded p-1 m-2"
-              placeholder="Name"
+              placeholder="Application Url"
               value={url}
               onChange={e => setUrl(e.target.value)}></input>
         <button onClick={addApplication} className="pr-2"><FontAwesomeIcon icon={faPlus} /></button>
