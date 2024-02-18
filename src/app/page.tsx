@@ -1,112 +1,140 @@
-import Image from "next/image";
+"use client"
+import { useState } from "react";
+import useSWR from 'swr'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faPlus } from '@fortawesome/free-solid-svg-icons'
+import { v4 } from 'uuid';
+import Field from "./field";
+import { IAddUrlBody, IResume, IResumeField, IStatsCountRes } from './resume-types';
+
+async function getResumeData(): Promise<IResume> {
+  const response = await fetch('/api/resume-json')
+  const data = await response.json();
+  return data;
+}
+
+async function getStatsCount(): Promise<IStatsCountRes> {
+  const response = await fetch('/api/stats/count')
+  const data = await response.json();
+  return data;
+}
+
+async function saveData(data: IResume | undefined) {
+  if (data) {
+    await fetch('/api/resume-json', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(data)
+    });
+  }
+}
+
+async function statsAddUrl(url: string) {
+  if (url !== "") {
+    await fetch('/api/stats', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        url: url
+      } as IAddUrlBody)
+    });
+  }
+}
+
+function arraymove<Type>(arr: Type[], fromIndex: number, toIndex: number) {
+  const element = arr[fromIndex];
+  arr.splice(fromIndex, 1);
+  arr.splice(toIndex, 0, element);
+}
 
 export default function Home() {
+  const { data, mutate: mutateData } = useSWR('/api/resume-json', getResumeData);
+  const { data: count, mutate: mutateCount } = useSWR('/api/stats/count', getStatsCount);
+  const resume = data;
+  const [name, setName] = useState('');
+  const [value, setValue] = useState('');
+  const [url, setUrl] = useState('');
+
+  async function handleDelete(id: string) {
+    if (window.confirm('Delete the item?')) {
+      const index = resume?.fields.findIndex((field) => field.id === id);
+      if (index !== undefined && resume && resume.fields) {
+        resume.fields.splice(index, 1);
+        
+        // resume.fields = [...resume.fields];
+        // resume = {...resume}
+        await mutateData(async (resume) => ({...resume, ...{fields: []}}), false);
+        await saveData(resume);
+      }
+    }
+  }
+
+  async function handleAdd() {
+    resume?.fields.push({
+      id: v4(),
+      name,
+      value,
+    });
+    await mutateData(resume, false);
+    setName('');
+    setValue('');
+    await saveData(resume);
+  }
+
+  async function move(id: string, isUp: boolean) {
+    const index = resume?.fields.findIndex((field) => field.id === id);
+    if (index !== undefined && resume?.fields) {
+      if (isUp && index - 1 >= 0) {
+        arraymove<IResumeField>(resume.fields, index, index - 1);
+      }
+      if (!isUp && index + 1 < resume.fields.length) {
+        arraymove<IResumeField>(resume.fields, index, index + 1);
+      }
+      resume.fields = [...resume.fields];
+      await saveData(resume);
+      await mutateData({...resume}, true);
+    }
+  }
+
+  async function addApplication() {
+    await statsAddUrl(url);
+    setUrl('');
+    mutateCount();
+  }
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-24">
-      <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl dark:border-neutral-800 dark:bg-zinc-800/30 dark:from-inherit lg:static lg:w-auto  lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-zinc-800/30">
-          Get started by editing&nbsp;
-          <code className="font-mono font-bold">src/app/page.tsx</code>
-        </p>
-        <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center bg-gradient-to-t from-white via-white dark:from-black dark:via-black lg:static lg:h-auto lg:w-auto lg:bg-none">
-          <a
-            className="pointer-events-none flex place-items-center gap-2 p-8 lg:pointer-events-auto lg:p-0"
-            href="https://vercel.com?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            By{" "}
-            <Image
-              src="/vercel.svg"
-              alt="Vercel Logo"
-              className="dark:invert"
-              width={100}
-              height={24}
-              priority
-            />
-          </a>
+    <main className="flex flex-col fixed overflow-auto h-full p-8 lg:p-24">
+      <div className="relative w-full flex place-items-center flex-wrap flex-1">
+        <div className="flex flex-wrap w-full p-1">
+          <input className="flex-auto text-sm text-sm max-h-16 max-w-[90%] border border-gray-400 lg:border-t lg:border-gray-400 hover:bg-gray-100 rounded lg:rounded lg:rounded p-1 my-2 justify-between leading-normal"
+            placeholder="Name"
+            value={name}
+            onChange={e => setName(e.target.value)}></input>
+          <textarea className="flex-auto text-sm text-sm max-h-8 max-w-[90%] border border-gray-400 lg:border-t lg:border-gray-400 hover:bg-gray-100 rounded lg:rounded lg:rounded p-1 justify-between leading-normal"
+            placeholder="Value"
+            rows={1}
+            value={value}
+            onChange={e => setValue(e.target.value)} />
+          <button onClick={handleAdd} className="flex flex-col p-2"><FontAwesomeIcon icon={faPlus} /></button>
         </div>
+        {resume?.fields.map((field) => (
+          <Field key={field.id}
+            data={field}
+            handleDelete={handleDelete}
+            move={move}></Field>
+        ))}
       </div>
-
-      <div className="relative flex place-items-center before:absolute before:h-[300px] before:w-full sm:before:w-[480px] before:-translate-x-1/2 before:rounded-full before:bg-gradient-radial before:from-white before:to-transparent before:blur-2xl before:content-[''] after:absolute after:-z-20 after:h-[180px] after:w-full sm:after:w-[240px] after:translate-x-1/3 after:bg-gradient-conic after:from-sky-200 after:via-blue-200 after:blur-2xl after:content-[''] before:dark:bg-gradient-to-br before:dark:from-transparent before:dark:to-blue-700 before:dark:opacity-10 after:dark:from-sky-900 after:dark:via-[#0141ff] after:dark:opacity-40 before:lg:h-[360px] z-[-1]">
-        <Image
-          className="relative dark:drop-shadow-[0_0_0.3rem_#ffffff70] dark:invert"
-          src="/next.svg"
-          alt="Next.js Logo"
-          width={180}
-          height={37}
-          priority
-        />
-      </div>
-
-      <div className="mb-32 grid text-center lg:max-w-5xl lg:w-full lg:mb-0 lg:grid-cols-4 lg:text-left">
-        <a
-          href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Docs{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Find in-depth information about Next.js features and API.
-          </p>
-        </a>
-
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Learn{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Learn about Next.js in an interactive course with&nbsp;quizzes!
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Templates{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50`}>
-            Explore starter templates for Next.js.
-          </p>
-        </a>
-
-        <a
-          href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          className="group rounded-lg border border-transparent px-5 py-4 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:dark:border-neutral-700 hover:dark:bg-neutral-800/30"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <h2 className={`mb-3 text-2xl font-semibold`}>
-            Deploy{" "}
-            <span className="inline-block transition-transform group-hover:translate-x-1 motion-reduce:transform-none">
-              -&gt;
-            </span>
-          </h2>
-          <p className={`m-0 max-w-[30ch] text-sm opacity-50 text-balance`}>
-            Instantly deploy your Next.js site to a shareable URL with Vercel.
-          </p>
-        </a>
+      <div className="flex sticky bottom-0 inset-x-0 border shadow-[0px_-5px_5px_-5px_#333] border-black bg-slate-200 rounded mt-1.5">
+        <div className="text-3xl p-1 text-center align-center">{count?.count}</div>
+        <input className="flex-auto text-sm text-sm max-h-16 max-w-full border border-gray-400 lg:border-t lg:border-gray-400 hover:bg-gray-100 rounded lg:rounded lg:rounded p-1 m-2"
+              placeholder="Name"
+              value={url}
+              onChange={e => setUrl(e.target.value)}></input>
+        <button onClick={addApplication} className="pr-2"><FontAwesomeIcon icon={faPlus} /></button>
       </div>
     </main>
   );
